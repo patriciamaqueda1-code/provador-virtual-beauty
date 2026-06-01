@@ -1,8 +1,16 @@
 {
-  "name": "provador-virtual-salao",
+  "name": "provador-virtual-beauty",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "homepage": "https://provador-virtual-beauty.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patriciamaqueda1-code/provador-virtual-beauty.git"
+  },
+  "bugs": {
+    "url": "https://github.com/patriciamaqueda1-code/provador-virtual-beauty/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
