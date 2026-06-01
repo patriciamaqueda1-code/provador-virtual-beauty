@@ -4,6 +4,8 @@ import {
   RefreshCw, ChevronLeft, Palette, Check, ImageIcon,
 } from 'lucide-react';
 import { useCamera, fileToDataUrl, extractDominantColor } from '../lib/camera';
+import { useAuth } from '../lib/auth';
+import { saveSession } from '../lib/sessions';
 
 type Step = 'bottle' | 'hand' | 'prompt' | 'generating' | 'result';
 
@@ -16,6 +18,7 @@ const SUGGESTIONS = [
 ];
 
 export default function NailTryOn({ onBack }: { onBack: () => void }) {
+  const { salon, refreshSalon } = useAuth();
   const [step, setStep] = useState<Step>('bottle');
   const [bottlePhoto, setBottlePhoto] = useState('');
   const [handPhoto, setHandPhoto] = useState('');
@@ -77,6 +80,9 @@ export default function NailTryOn({ onBack }: { onBack: () => void }) {
       if (!data.ok) throw new Error(data.error || 'Falha na geração');
       setGeneratedImage(data.image);
       setStep('result');
+      if (salon) {
+        saveSession(salon.id, 'nail', data.image, { color, prompt }).then(refreshSalon);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao gerar imagem');
       setStep('prompt');

@@ -4,6 +4,8 @@ import {
   RefreshCw, ChevronLeft, Check, Scissors, ImagePlus,
 } from 'lucide-react';
 import { useCamera, fileToDataUrl } from '../lib/camera';
+import { useAuth } from '../lib/auth';
+import { saveSession } from '../lib/sessions';
 
 type Step = 'photo' | 'style' | 'prompt' | 'generating' | 'result';
 
@@ -34,6 +36,7 @@ const SUGGESTIONS = [
 ];
 
 export default function HairTryOn({ onBack }: { onBack: () => void }) {
+  const { salon, refreshSalon } = useAuth();
   const [step, setStep] = useState<Step>('photo');
   const [photos, setPhotos] = useState<string[]>([]);
   const [styleId, setStyleId] = useState('');
@@ -94,6 +97,9 @@ export default function HairTryOn({ onBack }: { onBack: () => void }) {
       if (!data.ok) throw new Error(data.error || 'Falha na geração');
       setGeneratedImage(data.image);
       setStep('result');
+      if (salon) {
+        saveSession(salon.id, 'hair', data.image, { styleId, prompt }).then(refreshSalon);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao gerar imagem');
       setStep('prompt');
