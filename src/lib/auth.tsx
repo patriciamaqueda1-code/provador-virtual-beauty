@@ -18,6 +18,7 @@ interface SignUpData {
   email: string;
   password: string;
   phone?: string;
+  slug?: string;
 }
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
@@ -56,11 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const signUp = async ({ name, email, password, phone }: SignUpData) => {
+  const signUp = async ({ name, email, password, phone, slug }: SignUpData) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name, phone: phone ?? '' } },
+      options: { data: { name, phone: phone ?? '', slug: slug ?? '' } },
     });
     if (error) return { error: traduzErro(error.message) };
 

@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/auth';
+import { saveSession } from './lib/sessions';
 import Login from './components/Login';
 import Painel from './components/Painel';
+import PublicSalon from './components/PublicSalon';
 import NailTryOn from './components/NailTryOn';
 import HairTryOn from './components/HairTryOn';
 
@@ -28,14 +30,36 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Wrappers que injetam navegação nos provadores existentes
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  return <Navigate to={user ? '/painel' : '/login'} replace />;
+}
+
+// Wrappers do PAINEL (salão logado): salvam via client com a sessão do dono.
 function NailRoute() {
   const navigate = useNavigate();
-  return <NailTryOn onBack={() => navigate('/painel')} />;
+  const { salon, refreshSalon } = useAuth();
+  return (
+    <NailTryOn
+      onBack={() => navigate('/painel')}
+      onResult={(img, params) => {
+        if (salon) saveSession(salon.id, 'nail', img, params).then(refreshSalon);
+      }}
+    />
+  );
 }
 function HairRoute() {
   const navigate = useNavigate();
-  return <HairTryOn onBack={() => navigate('/painel')} />;
+  const { salon, refreshSalon } = useAuth();
+  return (
+    <HairTryOn
+      onBack={() => navigate('/painel')}
+      onResult={(img, params) => {
+        if (salon) saveSession(salon.id, 'hair', img, params).then(refreshSalon);
+      }}
+    />
+  );
 }
 
 export default function App() {
@@ -43,12 +67,17 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Rotas fixas (prioridade sobre /:slug) */}
           <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
           <Route path="/painel" element={<Protected><Painel /></Protected>} />
           <Route path="/provador/nail" element={<Protected><NailRoute /></Protected>} />
           <Route path="/provador/hair" element={<Protected><HairRoute /></Protected>} />
-          <Route path="/" element={<Navigate to="/painel" replace />} />
-          <Route path="*" element={<Navigate to="/painel" replace />} />
+          <Route path="/" element={<RootRedirect />} />
+
+          {/* Página pública do salão — o cliente acessa por aqui */}
+          <Route path="/:slug" element={<PublicSalon />} />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

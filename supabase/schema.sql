@@ -48,13 +48,30 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
+DECLARE
+  v_slug TEXT;
+  v_base TEXT;
+  v_i    INT := 0;
 BEGIN
-  INSERT INTO public.salons (owner_id, name, email, phone)
+  -- Slug escolhido no cadastro (ou derivado do nome). Garante unicidade.
+  v_base := lower(regexp_replace(
+    COALESCE(NEW.raw_user_meta_data->>'slug', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    '[^a-z0-9]+', '-', 'g'));
+  v_base := trim(both '-' from v_base);
+  IF v_base = '' THEN v_base := 'salao'; END IF;
+  v_slug := v_base;
+  WHILE EXISTS (SELECT 1 FROM public.salons WHERE slug = v_slug) LOOP
+    v_i := v_i + 1;
+    v_slug := v_base || '-' || v_i;
+  END LOOP;
+
+  INSERT INTO public.salons (owner_id, name, email, phone, slug)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email,
-    NEW.raw_user_meta_data->>'phone'
+    NEW.raw_user_meta_data->>'phone',
+    v_slug
   )
   ON CONFLICT (owner_id) DO NOTHING;
   RETURN NEW;
@@ -63,6 +80,29 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$;
+
+-- ── 3b. RPC pública: checar disponibilidade de slug (cadastro) ─
+CREATE OR REPLACE FUNCTION public.is_slug_available(p_slug TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT NOT EXISTS (SELECT 1 FROM public.salons WHERE slug = lower(p_slug));
+$$;
+
+-- ── 3c. RPC pública: dados públicos do salão por slug (página /:slug) ─
+CREATE OR REPLACE FUNCTION public.get_public_salon(p_slug TEXT)
+RETURNS TABLE (id UUID, name TEXT, slug TEXT, plan TEXT, quota_available BOOLEAN)
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT s.id, s.name, s.slug, s.plan,
+         (s.subscription_status = 'active' OR s.quota_used < s.quota_limit) AS quota_available
+  FROM public.salons s
+  WHERE s.slug = lower(p_slug)
+  LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_slug_available(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_salon(TEXT)  TO anon, authenticated;
 
 DROP TRIGGER IF EXISTS on_auth_salon_created ON auth.users;
 CREATE TRIGGER on_auth_salon_created

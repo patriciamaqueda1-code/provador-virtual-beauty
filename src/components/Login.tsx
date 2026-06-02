@@ -1,9 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Mail, Lock, User, Phone, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, Phone, Loader2, Eye, EyeOff, Check, X as XIcon } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 
 type Mode = 'login' | 'signup';
+
+// Transforma texto em slug (minúsculo, sem acento, hífens)
+function slugify(s: string): string {
+  return s
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+type SlugStatus = '' | 'checking' | 'available' | 'taken' | 'short';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,10 +27,31 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [okMsg, setOkMsg] = useState('');
+
+  // Auto-sugestão do slug a partir do nome (até o usuário editar manualmente)
+  useEffect(() => {
+    if (mode === 'signup' && !slugEdited) setSlug(slugify(name));
+  }, [name, mode, slugEdited]);
+
+  // Valida disponibilidade do slug (debounced)
+  useEffect(() => {
+    if (mode !== 'signup' || !slug) { setSlugStatus(''); return; }
+    if (slug.length < 3) { setSlugStatus('short'); return; }
+    setSlugStatus('checking');
+    const t = setTimeout(async () => {
+      const { data, error } = await supabase.rpc('is_slug_available', { p_slug: slug });
+      if (error) { setSlugStatus(''); return; }
+      setSlugStatus(data ? 'available' : 'taken');
+    }, 450);
+    return () => clearTimeout(t);
+  }, [slug, mode]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +64,12 @@ export default function Login() {
       if (error) setError(error);
       else navigate('/painel');
     } else {
-      const { error } = await signUp({ name, email, password, phone });
+      if (slug && slugStatus === 'taken') {
+        setError('Essa URL já está em uso. Escolha outra.');
+        setLoading(false);
+        return;
+      }
+      const { error } = await signUp({ name, email, password, phone, slug });
       if (error) setError(error);
       else {
         setOkMsg('Conta criada! Entrando…');
@@ -84,6 +123,38 @@ export default function Login() {
               <>
                 <Field icon={<User className="w-4 h-4" />} placeholder="Nome do salão" value={name} onChange={setName} required />
                 <Field icon={<Phone className="w-4 h-4" />} placeholder="WhatsApp (opcional)" value={phone} onChange={setPhone} type="tel" />
+
+                {/* URL customizada do salão */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Seu link exclusivo</label>
+                  <div className="flex items-stretch rounded-xl border-2 border-slate-200 focus-within:border-fuchsia-400 overflow-hidden transition-all">
+                    <span className="bg-slate-50 text-slate-400 text-xs px-2.5 flex items-center border-r border-slate-200 select-none">
+                      …beauty.app/
+                    </span>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => { setSlugEdited(true); setSlug(slugify(e.target.value)); }}
+                      placeholder="seu-salao"
+                      className="flex-1 px-3 py-3 text-sm text-slate-800 focus:outline-none placeholder-slate-400 min-w-0"
+                    />
+                    <span className="flex items-center px-3">
+                      {slugStatus === 'checking' && <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />}
+                      {slugStatus === 'available' && <Check className="w-4 h-4 text-emerald-500" />}
+                      {slugStatus === 'taken' && <XIcon className="w-4 h-4 text-red-500" />}
+                    </span>
+                  </div>
+                  <p className={`text-[11px] mt-1 ${
+                    slugStatus === 'available' ? 'text-emerald-600' :
+                    slugStatus === 'taken' ? 'text-red-500' :
+                    slugStatus === 'short' ? 'text-amber-500' : 'text-slate-400'
+                  }`}>
+                    {slugStatus === 'available' && '✓ Disponível! Esse será o link que você divulga pros clientes.'}
+                    {slugStatus === 'taken' && '✗ Já está em uso. Tente outro.'}
+                    {slugStatus === 'short' && 'Mínimo 3 caracteres.'}
+                    {(slugStatus === '' || slugStatus === 'checking') && 'Os clientes vão acessar o provador por esse link.'}
+                  </p>
+                </div>
               </>
             )}
             <Field icon={<Mail className="w-4 h-4" />} placeholder="E-mail" value={email} onChange={setEmail} type="email" required />

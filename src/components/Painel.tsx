@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Hand, Scissors, LogOut, ChevronRight, Clock, Zap, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Hand, Scissors, LogOut, ChevronRight, Zap, Image as ImageIcon, Copy, Check, ExternalLink } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { supabase, type TryonSession } from '../lib/supabase';
 
@@ -24,8 +24,19 @@ export default function Painel() {
       });
   }, [salon]);
 
+  const [copied, setCopied] = useState(false);
   const quotaLeft = salon ? Math.max(0, salon.quota_limit - salon.quota_used) : 0;
   const isPro = salon?.subscription_status === 'active';
+  const publicUrl = salon?.slug ? `${window.location.origin}/${salon.slug}` : '';
+
+  const copyLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
 
   return (
     <div className="min-h-screen">
@@ -70,9 +81,33 @@ export default function Painel() {
           )}
         </div>
 
+        {/* Link público do salão */}
+        {salon?.slug && (
+          <div className="bg-white rounded-2xl p-4 border border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-slate-800">🔗 Seu link pros clientes</p>
+              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-fuchsia-600 hover:text-fuchsia-700 flex items-center gap-1">
+                Abrir <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="flex items-stretch gap-2">
+              <div className="flex-1 bg-slate-50 rounded-xl px-3 py-2.5 text-sm text-slate-600 font-mono truncate border border-slate-200">
+                {publicUrl.replace(/^https?:\/\//, '')}
+              </div>
+              <button
+                onClick={copyLink}
+                className={`px-4 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 ${copied ? 'bg-emerald-500 text-white' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white'}`}
+              >
+                {copied ? <><Check className="w-4 h-4" /> Copiado</> : <><Copy className="w-4 h-4" /> Copiar</>}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">Divulgue no Instagram, WhatsApp e bio. Os clientes usam o provador por aqui.</p>
+          </div>
+        )}
+
         {/* Cards do provador */}
         <div>
-          <p className="font-bold text-slate-800 text-base mb-3">Novo provador</p>
+          <p className="font-bold text-slate-800 text-base mb-3">Novo provador (uso interno)</p>
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => navigate('/provador/nail')}

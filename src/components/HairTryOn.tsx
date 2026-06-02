@@ -4,10 +4,14 @@ import {
   RefreshCw, ChevronLeft, Check, Scissors, ImagePlus,
 } from 'lucide-react';
 import { useCamera, fileToDataUrl } from '../lib/camera';
-import { useAuth } from '../lib/auth';
-import { saveSession } from '../lib/sessions';
 
 type Step = 'photo' | 'style' | 'prompt' | 'generating' | 'result';
+
+interface Props {
+  onBack: () => void;
+  /** Chamado quando a imagem é gerada — o pai decide como salvar (painel vs público). */
+  onResult?: (image: string, params: Record<string, unknown>) => void;
+}
 
 interface HairStyle { id: string; label: string; emoji: string; desc: string; }
 
@@ -35,8 +39,7 @@ const SUGGESTIONS = [
   'Risca ao lado',
 ];
 
-export default function HairTryOn({ onBack }: { onBack: () => void }) {
-  const { salon, refreshSalon } = useAuth();
+export default function HairTryOn({ onBack, onResult }: Props) {
   const [step, setStep] = useState<Step>('photo');
   const [photos, setPhotos] = useState<string[]>([]);
   const [styleId, setStyleId] = useState('');
@@ -97,9 +100,7 @@ export default function HairTryOn({ onBack }: { onBack: () => void }) {
       if (!data.ok) throw new Error(data.error || 'Falha na geração');
       setGeneratedImage(data.image);
       setStep('result');
-      if (salon) {
-        saveSession(salon.id, 'hair', data.image, { styleId, prompt }).then(refreshSalon);
-      }
+      onResult?.(data.image, { styleId, prompt });
     } catch (err: any) {
       setError(err.message || 'Erro ao gerar imagem');
       setStep('prompt');

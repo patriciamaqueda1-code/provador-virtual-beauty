@@ -4,10 +4,14 @@ import {
   RefreshCw, ChevronLeft, Palette, Check, ImageIcon,
 } from 'lucide-react';
 import { useCamera, fileToDataUrl, extractDominantColor } from '../lib/camera';
-import { useAuth } from '../lib/auth';
-import { saveSession } from '../lib/sessions';
 
 type Step = 'bottle' | 'hand' | 'prompt' | 'generating' | 'result';
+
+interface Props {
+  onBack: () => void;
+  /** Chamado quando a imagem é gerada — o pai decide como salvar (painel vs público). */
+  onResult?: (image: string, params: Record<string, unknown>) => void;
+}
 
 const SUGGESTIONS = [
   'Acabamento brilhante',
@@ -17,8 +21,7 @@ const SUGGESTIONS = [
   'Nail art em uma unha',
 ];
 
-export default function NailTryOn({ onBack }: { onBack: () => void }) {
-  const { salon, refreshSalon } = useAuth();
+export default function NailTryOn({ onBack, onResult }: Props) {
   const [step, setStep] = useState<Step>('bottle');
   const [bottlePhoto, setBottlePhoto] = useState('');
   const [handPhoto, setHandPhoto] = useState('');
@@ -80,9 +83,7 @@ export default function NailTryOn({ onBack }: { onBack: () => void }) {
       if (!data.ok) throw new Error(data.error || 'Falha na geração');
       setGeneratedImage(data.image);
       setStep('result');
-      if (salon) {
-        saveSession(salon.id, 'nail', data.image, { color, prompt }).then(refreshSalon);
-      }
+      onResult?.(data.image, { color, prompt });
     } catch (err: any) {
       setError(err.message || 'Erro ao gerar imagem');
       setStep('prompt');
