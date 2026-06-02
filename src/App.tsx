@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { saveSession } from './lib/sessions';
+import Landing from './components/Landing';
 import Login from './components/Login';
 import Painel from './components/Painel';
 import PublicSalon from './components/PublicSalon';
@@ -30,10 +31,11 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function RootRedirect() {
+function RootRoute() {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  return <Navigate to={user ? '/painel' : '/login'} replace />;
+  if (user) return <Navigate to="/painel" replace />;
+  return <Landing />;
 }
 
 // Wrappers do PAINEL (salão logado): salvam via client com a sessão do dono.
@@ -72,7 +74,7 @@ export default function App() {
           <Route path="/painel" element={<Protected><Painel /></Protected>} />
           <Route path="/provador/nail" element={<Protected><NailRoute /></Protected>} />
           <Route path="/provador/hair" element={<Protected><HairRoute /></Protected>} />
-          <Route path="/" element={<RootRedirect />} />
+          <Route path="/" element={<RootRoute />} />
 
           {/* Página pública do salão — o cliente acessa por aqui */}
           <Route path="/:slug" element={<PublicSalon />} />
