@@ -2,9 +2,13 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { saveSession } from './lib/sessions';
+import type { UserRole } from './types';
 import Landing from './components/Landing';
 import Login from './components/Login';
+import Onboarding from './components/Onboarding';
 import Painel from './components/Painel';
+import SuperAdmin from './components/SuperAdmin';
+import CustomerPortal from './components/CustomerPortal';
 import PublicSalon from './components/PublicSalon';
 import NailTryOn from './components/NailTryOn';
 import HairTryOn from './components/HairTryOn';
@@ -17,28 +21,35 @@ function LoadingScreen() {
   );
 }
 
-function Protected({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+function homeFor(role: UserRole | null): string {
+  if (role === 'super_admin') return '/super-admin';
+  if (role === 'customer') return '/minha-conta';
+  return '/painel';
+}
+
+function Protected({ roles, children }: { roles?: UserRole[]; children: React.ReactNode }) {
+  const { user, role, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (roles && role && !roles.includes(role)) return <Navigate to={homeFor(role)} replace />;
   return <>{children}</>;
 }
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (user) return <Navigate to="/painel" replace />;
+  if (user) return <Navigate to={homeFor(role)} replace />;
   return <>{children}</>;
 }
 
 function RootRoute() {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (user) return <Navigate to="/painel" replace />;
+  if (user) return <Navigate to={homeFor(role)} replace />;
   return <Landing />;
 }
 
-// Wrappers do PAINEL (salão logado): salvam via client com a sessão do dono.
+// Painel do salão: provador salva via client com a sessão do dono.
 function NailRoute() {
   const navigate = useNavigate();
   const { salon, refreshSalon } = useAuth();
@@ -69,14 +80,24 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Rotas fixas (prioridade sobre /:slug) */}
+          {/* Auth */}
           <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-          <Route path="/painel" element={<Protected><Painel /></Protected>} />
-          <Route path="/provador/nail" element={<Protected><NailRoute /></Protected>} />
-          <Route path="/provador/hair" element={<Protected><HairRoute /></Protected>} />
+          <Route path="/onboarding" element={<Protected roles={['seller_owner']}><Onboarding /></Protected>} />
+
+          {/* Super Admin */}
+          <Route path="/super-admin" element={<Protected roles={['super_admin']}><SuperAdmin /></Protected>} />
+
+          {/* Seller (salão) */}
+          <Route path="/painel" element={<Protected roles={['seller_owner', 'seller_staff']}><Painel /></Protected>} />
+          <Route path="/provador/nail" element={<Protected roles={['seller_owner', 'seller_staff']}><NailRoute /></Protected>} />
+          <Route path="/provador/hair" element={<Protected roles={['seller_owner', 'seller_staff']}><HairRoute /></Protected>} />
+
+          {/* Cliente final */}
+          <Route path="/minha-conta" element={<Protected roles={['customer']}><CustomerPortal /></Protected>} />
+
           <Route path="/" element={<RootRoute />} />
 
-          {/* Página pública do salão — o cliente acessa por aqui */}
+          {/* Página pública do salão — provador + agendamento */}
           <Route path="/:slug" element={<PublicSalon />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
